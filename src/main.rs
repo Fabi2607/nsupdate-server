@@ -5,10 +5,13 @@ use std::fs;
 use std::fs::File;
 use std::net::{IpAddr, SocketAddr};
 use std::process::{Command, Stdio};
+use std::time::SystemTime;
+
+use env_logger;
+use log::{error, info};
 
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, Request, Response, Server, StatusCode, Uri};
-use std::time::SystemTime;
 
 /// Update DNS record
 fn nsupdate(domain: &str, ip: &str, record: &str) {
@@ -24,6 +27,8 @@ fn nsupdate(domain: &str, ip: &str, record: &str) {
     ));
 
     let path = path.as_os_str();
+
+    info!("Performing update for {} type {} with {}", domain, record, ip);
 
     fs::write(
         path,
@@ -52,7 +57,6 @@ fn nsupdate(domain: &str, ip: &str, record: &str) {
 /// Validate the API Key
 fn validate_api_key(key: &str, domain: &str) -> bool {
     let path = env::var("RNU_AUTH_FILE").unwrap_or("keys".to_string());
-
     let contents = fs::read_to_string(path).unwrap_or("".to_string());
 
     internal_validate_api_keys(&*contents, key, domain)
@@ -149,6 +153,8 @@ async fn shutdown_signal() {
 
 #[tokio::main()]
 async fn main() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
     let ip_address: IpAddr = std::env::var("RNU_HOST")
         .unwrap_or("127.0.0.1".into())
         .parse()
@@ -161,15 +167,18 @@ async fn main() {
 
     let addr = SocketAddr::new(ip_address, port);
 
-    let make_svc =
-        make_service_fn(|_conn| async { Ok::<_, Infallible>(service_fn(handle_request)) });
+    info!("Listening on {}", addr);
+
+    let make_svc = make_service_fn(|_conn| async {
+        Ok::<_, Infallible>(service_fn(|req| handle_request(req)))
+    });
 
     let server = Server::bind(&addr).serve(make_svc);
 
     let graceful = server.with_graceful_shutdown(shutdown_signal());
 
     if let Err(e) = graceful.await {
-        eprintln!("Server error: {}", e);
+        error!("Server error: {}", e);
     }
 }
 
