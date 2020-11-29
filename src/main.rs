@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::convert::Infallible;
+use std::convert::{Infallible};
 use std::env;
 use std::fs;
 use std::fs::File;
@@ -15,10 +15,15 @@ use hyper::{Body, Method, Request, Response, Server, StatusCode, Uri};
 
 /// Update DNS record
 fn nsupdate(domain: &str, ip: &str, record: &str) {
+    let keyfile = env::var("RNU_KEYFILE")
+        .unwrap_or("key.private".to_string());
+
     let command = match env::var_os("RNU_DEBUG") {
-        Some(_) => "cat",
-        None => "nsupdate",
+        Some(_) => ("cat", [].to_vec()),
+        None => ("nsupdate", ["-k", keyfile.as_str()].to_vec()),
     };
+
+    info!("Using key file {}", keyfile);
 
     let mut path = env::temp_dir();
     path.push(format!(
@@ -28,7 +33,10 @@ fn nsupdate(domain: &str, ip: &str, record: &str) {
 
     let path = path.as_os_str();
 
-    info!("Performing update for {} type {} with {}", domain, record, ip);
+    info!(
+        "Performing update for {} type {} with {}",
+        domain, record, ip
+    );
 
     fs::write(
         path,
@@ -41,9 +49,10 @@ fn nsupdate(domain: &str, ip: &str, record: &str) {
     )
     .expect("Could not write file");
 
-    let status = Command::new(command)
+    let status = Command::new(command.0)
         .stdin(Stdio::from(File::open(path).expect("Could not find file")))
         .stdout(Stdio::inherit())
+        .args(command.1)
         .status()
         .expect("Failed to execute command");
 
