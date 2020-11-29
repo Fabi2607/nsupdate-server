@@ -76,7 +76,7 @@ fn internal_validate_api_keys(file_content: &str, key: &str, domain: &str) -> bo
 
     api_keys.iter().any(|line| {
         let parts: Vec<&str> = line.split_ascii_whitespace().collect();
-        parts == [key, domain]
+        parts == [domain, key]
     })
 }
 
@@ -215,14 +215,14 @@ mod tests {
 
     #[test]
     fn test_key_file_single_line() {
-        assert!(internal_validate_api_keys("test test", "test", "test"));
+        assert!(internal_validate_api_keys("test testkey", "testkey", "test"));
     }
 
     #[test]
     fn test_key_file_multiline() {
         assert!(internal_validate_api_keys(
-            "a a\ntest test\n5 4",
-            "test",
+            "a a\ntest testkey\n5 4",
+            "testkey",
             "test"
         ));
     }
